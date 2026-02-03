@@ -1,22 +1,54 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { createChart, IChartApi, CandlestickData, Time } from "lightweight-charts";
-import { Kline, Level } from "@/types/market";
+import { useEffect, useRef, useMemo } from "react";
+import { createChart, IChartApi, CandlestickData, Time, LineData } from "lightweight-charts";
+import { Kline, Level, BollingerBands } from "@/types/market";
 
 interface CandlestickChartProps {
   klines: Kline[];
   levels?: Level[];
   height?: number;
+  showBollingerBands?: boolean;
+}
+
+// Calculate Bollinger Bands for each candle
+function calculateBollingerBandsHistory(klines: Kline[], period = 20, stdDev = 2) {
+  const result: { time: number; upper: number; middle: number; lower: number }[] = [];
+  
+  for (let i = period - 1; i < klines.length; i++) {
+    const slice = klines.slice(i - period + 1, i + 1);
+    const closes = slice.map(k => k.close);
+    const middle = closes.reduce((sum, p) => sum + p, 0) / period;
+    
+    const squaredDiffs = closes.map(p => Math.pow(p - middle, 2));
+    const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / period;
+    const std = Math.sqrt(variance);
+    
+    result.push({
+      time: klines[i].time,
+      upper: middle + stdDev * std,
+      middle: middle,
+      lower: middle - stdDev * std,
+    });
+  }
+  
+  return result;
 }
 
 export function CandlestickChart({
   klines,
   levels = [],
   height = 200,
+  showBollingerBands = true,
 }: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+
+  // Calculate Bollinger Bands
+  const bollingerData = useMemo(() => {
+    if (!showBollingerBands || klines.length < 20) return null;
+    return calculateBollingerBandsHistory(klines);
+  }, [klines, showBollingerBands]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -46,6 +78,45 @@ export function CandlestickChart({
     });
 
     chartRef.current = chart;
+
+    // Add Bollinger Bands first (so they appear behind candles)
+    if (bollingerData && bollingerData.length > 0) {
+      // Upper band
+      const upperBandSeries = chart.addLineSeries({
+        color: "rgba(147, 51, 234, 0.5)", // Purple
+        lineWidth: 1,
+        lineStyle: 0,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      upperBandSeries.setData(
+        bollingerData.map(b => ({ time: b.time as Time, value: b.upper }))
+      );
+
+      // Middle band (SMA)
+      const middleBandSeries = chart.addLineSeries({
+        color: "rgba(147, 51, 234, 0.8)", // Purple
+        lineWidth: 1,
+        lineStyle: 2, // Dashed
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      middleBandSeries.setData(
+        bollingerData.map(b => ({ time: b.time as Time, value: b.middle }))
+      );
+
+      // Lower band
+      const lowerBandSeries = chart.addLineSeries({
+        color: "rgba(147, 51, 234, 0.5)", // Purple
+        lineWidth: 1,
+        lineStyle: 0,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      lowerBandSeries.setData(
+        bollingerData.map(b => ({ time: b.time as Time, value: b.lower }))
+      );
+    }
 
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: "#22c55e",
@@ -92,7 +163,7 @@ export function CandlestickChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [klines, levels, height]);
+  }, [klines, levels, height, bollingerData]);
 
   return (
     <div
