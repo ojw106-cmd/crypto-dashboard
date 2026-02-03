@@ -1,21 +1,27 @@
 "use client";
 
-import { ATRData, PositionSizing as PositionSizingType } from "@/types/market";
+import { useState } from "react";
+import { ATRData, PositionSizing as PositionSizingType, TechnicalIndicators } from "@/types/market";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { PositionDetailModal } from "./PositionDetailModal";
 import { 
   TrendingUp, 
   TrendingDown, 
   Activity, 
   Shield, 
   Zap,
-  AlertTriangle 
+  AlertTriangle,
+  ExternalLink
 } from "lucide-react";
 
 interface PositionSizingProps {
   positionSizing: PositionSizingType;
   atr: ATRData;
   action: 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
+  symbol?: string;
+  currentPrice?: number;
+  indicators?: TechnicalIndicators;
 }
 
 const RISK_CONFIG = {
@@ -31,7 +37,16 @@ const VOLATILITY_CONFIG = {
   extreme: { label: '극심', color: 'text-red-500', bgColor: 'bg-red-500/20' },
 };
 
-export function PositionSizingComponent({ positionSizing, atr, action }: PositionSizingProps) {
+export function PositionSizingComponent({ 
+  positionSizing, 
+  atr, 
+  action,
+  symbol = "HYPE",
+  currentPrice = 0,
+  indicators
+}: PositionSizingProps) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  
   const riskConfig = RISK_CONFIG[positionSizing.riskLevel];
   const volatilityConfig = VOLATILITY_CONFIG[atr.volatility];
   const RiskIcon = riskConfig.icon;
@@ -39,8 +54,31 @@ export function PositionSizingComponent({ positionSizing, atr, action }: Positio
   const isBuySignal = action === 'strong_buy' || action === 'buy';
   const isSellSignal = action === 'strong_sell' || action === 'sell';
 
+  // Default indicators if not provided
+  const defaultIndicators: TechnicalIndicators = indicators || {
+    ema: { ema7: 0, ema20: 0, ema50: 0, trend: 'neutral' },
+    rsi: { value: 50, condition: 'neutral' },
+    macd: { macd: 0, signal: 0, histogram: 0, trend: 'neutral' },
+    bollingerBands: { upper: 0, middle: 0, lower: 0, position: 'middle' },
+    support: [],
+    resistance: [],
+    signalScore: 0,
+  };
+
   return (
     <div className="space-y-4">
+      {/* Detail Modal */}
+      <PositionDetailModal
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        symbol={symbol}
+        currentPrice={currentPrice}
+        positionSizing={positionSizing}
+        atr={atr}
+        indicators={defaultIndicators}
+        action={action}
+      />
+
       {/* Main Position Recommendation */}
       <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
@@ -54,10 +92,19 @@ export function PositionSizingComponent({ positionSizing, atr, action }: Positio
             )}
             <span className="font-medium">추천 진입 비중</span>
           </div>
-          <Badge className={riskConfig.color}>
-            <RiskIcon className="h-3 w-3 mr-1" />
-            {riskConfig.label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className={riskConfig.color}>
+              <RiskIcon className="h-3 w-3 mr-1" />
+              {riskConfig.label}
+            </Badge>
+            <button
+              onClick={() => setDetailOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-colors"
+            >
+              상세
+              <ExternalLink className="h-3 w-3" />
+            </button>
+          </div>
         </div>
         
         {/* Position Bar */}

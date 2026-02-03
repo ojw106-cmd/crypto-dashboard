@@ -88,3 +88,32 @@ export const COIN_DISPLAY_NAMES: Record<CoinSymbol, string> = {
 };
 
 export const TIME_FRAMES: TimeFrame[] = ['3m', '15m', '1h', '4h', '1d'];
+
+// Technical indicators for detailed analysis
+export interface TechnicalIndicators {
+  ema: {
+    ema7: number;
+    ema20: number;
+    ema50: number;
+    trend: 'bullish' | 'bearish' | 'neutral';
+  };
+  rsi: {
+    value: number;
+    condition: 'oversold' | 'overbought' | 'neutral';
+  };
+  macd: {
+    macd: number;
+    signal: number;
+    histogram: number;
+    trend: 'bullish' | 'bearish' | 'neutral';
+  };
+  bollingerBands: {
+    upper: number;
+    middle: number;
+    lower: number;
+    position: 'upper' | 'middle' | 'lower';
+  };
+  support: Array<{ price: number; strength: number }>;
+  resistance: Array<{ price: number; strength: number }>;
+  signalScore: number; // -100 to +100
+}

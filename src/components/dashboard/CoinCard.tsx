@@ -81,6 +81,7 @@ export function CoinCard({ symbol, timeFrame }: CoinCardProps) {
       <CardContent className="space-y-6">
         <CandlestickChart klines={klines} levels={levels.slice(0, 6)} height={400} />
         <AnalysisSummary
+          symbol={COIN_DISPLAY_NAMES[symbol].replace('/USDT', '')}
           analysis={analysis}
           levels={levels}
           currentPrice={currentPrice}

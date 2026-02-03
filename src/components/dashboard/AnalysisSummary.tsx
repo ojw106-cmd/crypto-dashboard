@@ -1,4 +1,4 @@
-import { TechnicalAnalysis, Level, MACD, BollingerBands, VolumeAnalysis, TradingSignal, ATRData, PositionSizing } from "@/types/market";
+import { TechnicalAnalysis, Level, MACD, BollingerBands, VolumeAnalysis, TradingSignal, ATRData, PositionSizing, TechnicalIndicators as TechnicalIndicatorsType } from "@/types/market";
 import { TechnicalIndicators } from "@/components/analysis/TechnicalIndicators";
 import { SupportResistance } from "@/components/analysis/SupportResistance";
 import { TrendBadge } from "@/components/analysis/TrendBadge";
@@ -6,6 +6,7 @@ import { TradingSignalComponent } from "@/components/analysis/TradingSignal";
 import { PositionSizingComponent } from "@/components/analysis/PositionSizing";
 
 interface AnalysisSummaryProps {
+  symbol?: string;
   analysis: TechnicalAnalysis;
   levels: Level[];
   currentPrice: number;
@@ -18,6 +19,7 @@ interface AnalysisSummaryProps {
 }
 
 export function AnalysisSummary({
+  symbol = "HYPE",
   analysis,
   levels,
   currentPrice,
@@ -28,6 +30,35 @@ export function AnalysisSummary({
   atr,
   positionSizing,
 }: AnalysisSummaryProps) {
+  // Build indicators object for detailed modal
+  const indicatorsData: TechnicalIndicatorsType | undefined = tradingSignal && macd && bollinger ? {
+    ema: {
+      ema7: analysis.ema7,
+      ema20: analysis.ema20,
+      ema50: analysis.ema50,
+      trend: analysis.trend,
+    },
+    rsi: {
+      value: analysis.rsi,
+      condition: analysis.rsi > 70 ? 'overbought' : analysis.rsi < 30 ? 'oversold' : 'neutral',
+    },
+    macd: {
+      macd: macd.macd,
+      signal: macd.signal,
+      histogram: macd.histogram,
+      trend: macd.histogram > 0 ? 'bullish' : macd.histogram < 0 ? 'bearish' : 'neutral',
+    },
+    bollingerBands: {
+      upper: bollinger.upper,
+      middle: bollinger.middle,
+      lower: bollinger.lower,
+      position: bollinger.percentB > 80 ? 'upper' : bollinger.percentB < 20 ? 'lower' : 'middle',
+    },
+    support: levels.filter(l => l.type === 'support').map(l => ({ price: l.price, strength: l.strength })),
+    resistance: levels.filter(l => l.type === 'resistance').map(l => ({ price: l.price, strength: l.strength })),
+    signalScore: tradingSignal.score,
+  } : undefined;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -55,6 +86,9 @@ export function AnalysisSummary({
                 positionSizing={positionSizing}
                 atr={atr}
                 action={tradingSignal.action}
+                symbol={symbol}
+                currentPrice={currentPrice}
+                indicators={indicatorsData}
               />
             </div>
           )}
