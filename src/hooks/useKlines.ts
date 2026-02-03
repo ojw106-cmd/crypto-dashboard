@@ -48,16 +48,33 @@ const defaultPositionSizing: PositionSizing = {
   reasoning: [] 
 };
 
+// Fetch real-time ticker
+async function fetchTicker(symbol: string) {
+  const response = await fetch(`/api/ticker?symbol=${symbol}`);
+  if (!response.ok) throw new Error('Failed to fetch ticker');
+  return response.json();
+}
+
 export function useKlines(
   symbol: CoinSymbol,
   timeFrame: TimeFrame
 ): UseKlinesResult {
+  // Klines data - refresh every 2 minutes
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['klines', symbol, timeFrame],
     queryFn: () => fetchKlines(symbol, timeFrame, 100),
-    refetchInterval: 5 * 60 * 1000, // 5 minutes
-    staleTime: 1 * 60 * 1000, // 1 minute
+    refetchInterval: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30 seconds
     retry: 3,
+  });
+
+  // Real-time ticker - refresh every 30 seconds
+  const { data: tickerData } = useQuery({
+    queryKey: ['ticker', symbol],
+    queryFn: () => fetchTicker(symbol),
+    refetchInterval: 30 * 1000, // 30 seconds
+    staleTime: 10 * 1000, // 10 seconds
+    retry: 2,
   });
 
   const klines = data ?? [];
@@ -75,7 +92,8 @@ export function useKlines(
   const volume = klines.length > 0 ? analyzeVolume(klines) : defaultVolume;
   const fibonacci = klines.length > 0 ? calculateFibonacciLevels(klines) : [];
 
-  const currentPrice = klines.length > 0 ? klines[klines.length - 1].close : 0;
+  // Use ticker price if available (more real-time), otherwise fall back to klines
+  const currentPrice = tickerData?.price ?? (klines.length > 0 ? klines[klines.length - 1].close : 0);
 
   // Generate trading signal
   const supportLevels = levels.filter(l => l.type === 'support').map(l => l.price);
@@ -91,9 +109,9 @@ export function useKlines(
     ? calculatePositionSizing(tradingSignal, atr) 
     : defaultPositionSizing;
 
-  // Calculate 24h price change from klines
-  let priceChange24h = 0;
-  if (klines.length >= 2) {
+  // Use ticker's 24h change if available (more accurate), otherwise calculate from klines
+  let priceChange24h = tickerData?.priceChangePercent ?? 0;
+  if (!tickerData && klines.length >= 2) {
     const periodsFor24h = timeFrame === '15m' ? 96 : timeFrame === '1h' ? 24 : timeFrame === '4h' ? 6 : 1;
     const startIndex = Math.max(0, klines.length - periodsFor24h - 1);
     const startPrice = klines[startIndex].close;

@@ -87,8 +87,7 @@ export function CandlestickChart({
         lineWidth: 2,
         lineStyle: 0,
         priceLineVisible: false,
-        lastValueVisible: true,
-        title: "BB Upper",
+        lastValueVisible: false,
       });
       upperBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.upper }))
@@ -101,7 +100,6 @@ export function CandlestickChart({
         lineStyle: 2, // Dashed
         priceLineVisible: false,
         lastValueVisible: false,
-        title: "BB Mid",
       });
       middleBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.middle }))
@@ -113,8 +111,7 @@ export function CandlestickChart({
         lineWidth: 2,
         lineStyle: 0,
         priceLineVisible: false,
-        lastValueVisible: true,
-        title: "BB Lower",
+        lastValueVisible: false,
       });
       lowerBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.lower }))
@@ -140,7 +137,7 @@ export function CandlestickChart({
 
     candlestickSeries.setData(chartData);
 
-    // Add price lines for support/resistance levels
+    // Add price lines for support/resistance levels (no labels for cleaner chart)
     levels.forEach((level) => {
       candlestickSeries.createPriceLine({
         price: level.price,
@@ -148,7 +145,7 @@ export function CandlestickChart({
         lineWidth: 1,
         lineStyle: 2, // Dashed
         axisLabelVisible: true,
-        title: level.type === "support" ? "S" : "R",
+        title: "", // No label
       });
     });
 

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 }, // Cache for 60 seconds
+      next: { revalidate: 10 }, // Cache for 10 seconds for fresher data
     });
 
     if (!response.ok) {
