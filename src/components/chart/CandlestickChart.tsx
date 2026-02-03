@@ -81,37 +81,40 @@ export function CandlestickChart({
 
     // Add Bollinger Bands first (so they appear behind candles)
     if (bollingerData && bollingerData.length > 0) {
-      // Upper band
+      // Upper band - Orange/Yellow for visibility
       const upperBandSeries = chart.addLineSeries({
-        color: "rgba(147, 51, 234, 0.5)", // Purple
-        lineWidth: 1,
+        color: "#f59e0b", // Amber/Orange
+        lineWidth: 2,
         lineStyle: 0,
         priceLineVisible: false,
-        lastValueVisible: false,
+        lastValueVisible: true,
+        title: "BB Upper",
       });
       upperBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.upper }))
       );
 
-      // Middle band (SMA)
+      // Middle band (SMA) - White dashed
       const middleBandSeries = chart.addLineSeries({
-        color: "rgba(147, 51, 234, 0.8)", // Purple
+        color: "#ffffff", // White
         lineWidth: 1,
         lineStyle: 2, // Dashed
         priceLineVisible: false,
         lastValueVisible: false,
+        title: "BB Mid",
       });
       middleBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.middle }))
       );
 
-      // Lower band
+      // Lower band - Orange/Yellow for visibility
       const lowerBandSeries = chart.addLineSeries({
-        color: "rgba(147, 51, 234, 0.5)", // Purple
-        lineWidth: 1,
+        color: "#f59e0b", // Amber/Orange
+        lineWidth: 2,
         lineStyle: 0,
         priceLineVisible: false,
-        lastValueVisible: false,
+        lastValueVisible: true,
+        title: "BB Lower",
       });
       lowerBandSeries.setData(
         bollingerData.map(b => ({ time: b.time as Time, value: b.lower }))
