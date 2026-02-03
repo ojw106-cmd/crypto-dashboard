@@ -21,6 +21,36 @@ export interface Level {
   strength: number;
 }
 
+export interface MACD {
+  macd: number;
+  signal: number;
+  histogram: number;
+  crossover: 'golden' | 'death' | 'none';
+}
+
+export interface BollingerBands {
+  upper: number;
+  middle: number;
+  lower: number;
+  bandwidth: number;
+  percentB: number; // 0-100, current price position within bands
+}
+
+export interface VolumeAnalysis {
+  currentVolume: number;
+  avgVolume: number;
+  volumeRatio: number;
+  trend: 'high' | 'low' | 'normal';
+}
+
+export interface TradingSignal {
+  action: 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
+  confidence: 'high' | 'medium' | 'low';
+  score: number; // -100 to +100
+  reasons: string[];
+  timestamp: number;
+}
+
 export interface CoinData {
   symbol: string;
   displayName: string;

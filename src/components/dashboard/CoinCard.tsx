@@ -22,8 +22,19 @@ interface CoinCardProps {
 }
 
 export function CoinCard({ symbol, timeFrame }: CoinCardProps) {
-  const { klines, analysis, levels, currentPrice, priceChange24h, isLoading, isError } =
-    useKlines(symbol, timeFrame);
+  const { 
+    klines, 
+    analysis, 
+    levels, 
+    macd, 
+    bollinger, 
+    volume, 
+    tradingSignal,
+    currentPrice, 
+    priceChange24h, 
+    isLoading, 
+    isError 
+  } = useKlines(symbol, timeFrame);
 
   if (isError) {
     return (
@@ -71,6 +82,10 @@ export function CoinCard({ symbol, timeFrame }: CoinCardProps) {
           analysis={analysis}
           levels={levels}
           currentPrice={currentPrice}
+          macd={macd}
+          bollinger={bollinger}
+          volume={volume}
+          tradingSignal={tradingSignal}
         />
       </CardContent>
     </Card>
