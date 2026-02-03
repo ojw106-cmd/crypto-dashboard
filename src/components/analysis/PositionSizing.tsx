@@ -12,7 +12,8 @@ import {
   Shield, 
   Zap,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Target
 } from "lucide-react";
 
 interface PositionSizingProps {
@@ -23,6 +24,8 @@ interface PositionSizingProps {
   currentPrice?: number;
   indicators?: TechnicalIndicators;
 }
+
+const FIXED_LEVERAGE = 5;
 
 const RISK_CONFIG = {
   conservative: { label: '보수적', color: 'bg-blue-500', icon: Shield },
@@ -36,6 +39,44 @@ const VOLATILITY_CONFIG = {
   high: { label: '높음', color: 'text-orange-500', bgColor: 'bg-orange-500/20' },
   extreme: { label: '극심', color: 'text-red-500', bgColor: 'bg-red-500/20' },
 };
+
+// Calculate position size for fixed leverage
+function calculateFixedLeveragePosition(
+  basePosition: number, 
+  atr: ATRData, 
+  leverage: number
+): { entryPercent: number; effectiveExposure: number; stopLossPct: number; liquidationPct: number } {
+  // Base effective exposure from signal
+  const targetExposure = basePosition; // This is what we want as effective exposure
+  
+  // Adjust for volatility - higher volatility = smaller position
+  let volMultiplier = 1;
+  if (atr.volatility === 'extreme') {
+    volMultiplier = 0.4;
+  } else if (atr.volatility === 'high') {
+    volMultiplier = 0.6;
+  } else if (atr.volatility === 'medium') {
+    volMultiplier = 0.8;
+  }
+  
+  // Entry percent = target exposure / leverage, adjusted for volatility
+  const entryPercent = Math.round((targetExposure / leverage) * volMultiplier);
+  const effectiveExposure = entryPercent * leverage;
+  
+  // Stop loss based on ATR (1.5x ATR)
+  const stopLossPct = Math.round(atr.atrPercent * 1.5 * 10) / 10;
+  
+  // Liquidation price (for long: price drop that wipes margin)
+  // At 5x leverage, 20% drop = liquidation (100% / leverage)
+  const liquidationPct = Math.round(100 / leverage);
+  
+  return {
+    entryPercent: Math.max(0, Math.min(100, entryPercent)),
+    effectiveExposure,
+    stopLossPct,
+    liquidationPct,
+  };
+}
 
 export function PositionSizingComponent({ 
   positionSizing, 
@@ -53,6 +94,17 @@ export function PositionSizingComponent({
   
   const isBuySignal = action === 'strong_buy' || action === 'buy';
   const isSellSignal = action === 'strong_sell' || action === 'sell';
+
+  // Calculate fixed leverage position
+  const fixedPos = calculateFixedLeveragePosition(
+    positionSizing.basePosition,
+    atr,
+    FIXED_LEVERAGE
+  );
+  
+  // Stop loss and liquidation prices
+  const stopLossPrice = currentPrice > 0 ? currentPrice * (1 - fixedPos.stopLossPct / 100) : 0;
+  const liquidationPrice = currentPrice > 0 ? currentPrice * (1 - fixedPos.liquidationPct / 100) : 0;
 
   // Default indicators if not provided
   const defaultIndicators: TechnicalIndicators = indicators || {
@@ -79,7 +131,7 @@ export function PositionSizingComponent({
         action={action}
       />
 
-      {/* Main Position Recommendation */}
+      {/* Main Position Recommendation - 5x Fixed */}
       <div className="bg-gradient-to-r from-muted/50 to-muted/30 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -90,7 +142,10 @@ export function PositionSizingComponent({
             ) : (
               <Activity className="h-5 w-5 text-yellow-500" />
             )}
-            <span className="font-medium">추천 진입 비중</span>
+            <span className="font-medium">추천 진입금</span>
+            <Badge variant="outline" className="text-xs">
+              {FIXED_LEVERAGE}x 고정
+            </Badge>
           </div>
           <div className="flex items-center gap-2">
             <Badge className={riskConfig.color}>
@@ -107,92 +162,76 @@ export function PositionSizingComponent({
           </div>
         </div>
         
-        {/* Position Bar */}
+        {/* Entry Amount Bar */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">조정 후 비중</span>
+            <span className="text-muted-foreground">자본 대비 진입금</span>
             <span className="font-bold text-lg">
-              {positionSizing.volatilityAdjusted}%
+              {fixedPos.entryPercent}%
             </span>
           </div>
           <Progress 
-            value={positionSizing.volatilityAdjusted} 
+            value={fixedPos.entryPercent} 
             className="h-3"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>기본 비중: {positionSizing.basePosition}%</span>
+            <span>실효 노출: {fixedPos.effectiveExposure}%</span>
             <span>
-              {positionSizing.volatilityAdjusted > positionSizing.basePosition 
-                ? `+${positionSizing.volatilityAdjusted - positionSizing.basePosition}% (변동성 보정)`
-                : positionSizing.volatilityAdjusted < positionSizing.basePosition
-                ? `${positionSizing.volatilityAdjusted - positionSizing.basePosition}% (변동성 보정)`
-                : '변동성 보정 없음'
-              }
+              {isBuySignal ? '롱' : isSellSignal ? '숏' : '관망'} 포지션
             </span>
           </div>
         </div>
       </div>
 
-      {/* ATR & Leverage */}
+      {/* Risk Info - 2 columns */}
       <div className="grid grid-cols-2 gap-3">
         {/* Volatility */}
         <div className={`rounded-lg p-3 ${volatilityConfig.bgColor}`}>
           <div className="flex items-center gap-2 mb-1">
             <Activity className={`h-4 w-4 ${volatilityConfig.color}`} />
-            <span className="text-sm text-muted-foreground">변동성 (ATR)</span>
+            <span className="text-sm text-muted-foreground">변동성</span>
           </div>
           <div className={`font-bold ${volatilityConfig.color}`}>
-            {atr.atrPercent.toFixed(2)}%
+            {atr.atrPercent.toFixed(1)}%
           </div>
           <div className="text-xs text-muted-foreground">
             {volatilityConfig.label}
           </div>
         </div>
 
-        {/* Max Leverage */}
-        <div className="rounded-lg p-3 bg-muted/50">
+        {/* Stop Loss */}
+        <div className="rounded-lg p-3 bg-red-500/10">
           <div className="flex items-center gap-2 mb-1">
-            {atr.volatility === 'extreme' ? (
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            ) : (
-              <Zap className="h-4 w-4 text-purple-500" />
-            )}
-            <span className="text-sm text-muted-foreground">추천 최대 레버리지</span>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+            <span className="text-sm text-muted-foreground">손절가</span>
           </div>
-          <div className={`font-bold ${atr.volatility === 'extreme' ? 'text-red-500' : 'text-purple-500'}`}>
-            {positionSizing.maxLeverage}x
+          <div className="font-bold text-red-500">
+            ${stopLossPrice.toFixed(2)}
           </div>
           <div className="text-xs text-muted-foreground">
-            {atr.volatility === 'extreme' ? '레버리지 비추천' : '변동성 기반'}
+            -{fixedPos.stopLossPct}% (ATR 기반)
           </div>
         </div>
       </div>
 
-      {/* Reasoning */}
-      {positionSizing.reasoning.length > 0 && (
-        <div className="bg-muted/30 rounded-lg p-3">
-          <div className="text-sm font-medium mb-2">📊 판단 근거</div>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            {positionSizing.reasoning.map((reason, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                {reason}
-              </li>
-            ))}
-          </ul>
+      {/* Liquidation Warning */}
+      <div className="bg-muted/30 rounded-lg p-3 flex items-center gap-3">
+        <Target className="h-4 w-4 text-muted-foreground" />
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium">청산가:</span> ${liquidationPrice.toFixed(2)} (-{fixedPos.liquidationPct}%)
+          <span className="ml-2">|</span>
+          <span className="ml-2">손절 전 청산 거리: {(fixedPos.liquidationPct - fixedPos.stopLossPct).toFixed(1)}%</span>
         </div>
-      )}
+      </div>
 
       {/* Quick Guide */}
       <div className="text-xs text-muted-foreground bg-muted/20 rounded-lg p-2">
         💡 <strong>가이드:</strong> 
-        {positionSizing.volatilityAdjusted >= 70 
-          ? ' 신호가 강함 - 적극 진입 가능하나 분할 매수 권장'
-          : positionSizing.volatilityAdjusted >= 40
-          ? ' 신호 보통 - 1/2~1/3 비중으로 진입, 추가 확인 후 증액'
-          : positionSizing.volatilityAdjusted >= 20
-          ? ' 신호 약함 - 소량 진입 또는 관망 권장'
-          : ' 진입 비추천 - 포지션 축소 또는 청산 고려'
+        {fixedPos.entryPercent >= 15 
+          ? ` ${fixedPos.entryPercent}% 진입 권장 → 반씩 분할 진입 (${Math.round(fixedPos.entryPercent/2)}% × 2)`
+          : fixedPos.entryPercent >= 8
+          ? ` ${fixedPos.entryPercent}% 진입 권장 → 신호 확인 후 일괄 진입`
+          : ' 진입 비추천 - 더 좋은 기회 대기'
         }
       </div>
     </div>
