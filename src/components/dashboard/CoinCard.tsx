@@ -30,6 +30,8 @@ export function CoinCard({ symbol, timeFrame }: CoinCardProps) {
     bollinger, 
     volume, 
     tradingSignal,
+    atr,
+    positionSizing,
     currentPrice, 
     priceChange24h, 
     isLoading, 
@@ -86,6 +88,8 @@ export function CoinCard({ symbol, timeFrame }: CoinCardProps) {
           bollinger={bollinger}
           volume={volume}
           tradingSignal={tradingSignal}
+          atr={atr}
+          positionSizing={positionSizing}
         />
       </CardContent>
     </Card>

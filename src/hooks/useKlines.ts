@@ -6,12 +6,15 @@ import {
   calculateBollingerBands, 
   analyzeVolume,
   calculateFibonacciLevels,
-  generateTradingSignal 
+  generateTradingSignal,
+  calculateATR,
+  calculatePositionSizing
 } from '@/lib/indicators';
 import { findSupportResistance } from '@/lib/levels';
 import { 
   Kline, TimeFrame, CoinSymbol, TechnicalAnalysis, Level, 
-  MACD, BollingerBands, VolumeAnalysis, TradingSignal 
+  MACD, BollingerBands, VolumeAnalysis, TradingSignal,
+  ATRData, PositionSizing
 } from '@/types/market';
 
 interface UseKlinesResult {
@@ -23,6 +26,8 @@ interface UseKlinesResult {
   volume: VolumeAnalysis;
   fibonacci: { price: number; level: string }[];
   tradingSignal: TradingSignal;
+  atr: ATRData;
+  positionSizing: PositionSizing;
   currentPrice: number;
   priceChange24h: number;
   isLoading: boolean;
@@ -34,6 +39,14 @@ const defaultMACD: MACD = { macd: 0, signal: 0, histogram: 0, crossover: 'none' 
 const defaultBollinger: BollingerBands = { upper: 0, middle: 0, lower: 0, bandwidth: 0, percentB: 50 };
 const defaultVolume: VolumeAnalysis = { currentVolume: 0, avgVolume: 0, volumeRatio: 1, trend: 'normal' };
 const defaultSignal: TradingSignal = { action: 'hold', confidence: 'low', score: 0, reasons: [], timestamp: 0 };
+const defaultATR: ATRData = { atr: 0, atrPercent: 0, volatility: 'medium' };
+const defaultPositionSizing: PositionSizing = { 
+  basePosition: 50, 
+  volatilityAdjusted: 50, 
+  riskLevel: 'moderate', 
+  maxLeverage: 3, 
+  reasoning: [] 
+};
 
 export function useKlines(
   symbol: CoinSymbol,
@@ -72,6 +85,12 @@ export function useKlines(
     ? generateTradingSignal(analysis, macd, bollinger, volume, currentPrice, supportLevels, resistanceLevels)
     : defaultSignal;
 
+  // Calculate ATR and position sizing
+  const atr = klines.length > 0 ? calculateATR(klines) : defaultATR;
+  const positionSizing = klines.length > 0 
+    ? calculatePositionSizing(tradingSignal, atr) 
+    : defaultPositionSizing;
+
   // Calculate 24h price change from klines
   let priceChange24h = 0;
   if (klines.length >= 2) {
@@ -90,6 +109,8 @@ export function useKlines(
     volume,
     fibonacci,
     tradingSignal,
+    atr,
+    positionSizing,
     currentPrice,
     priceChange24h,
     isLoading,

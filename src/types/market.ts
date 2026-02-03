@@ -51,6 +51,20 @@ export interface TradingSignal {
   timestamp: number;
 }
 
+export interface ATRData {
+  atr: number;
+  atrPercent: number; // ATR as % of current price
+  volatility: 'low' | 'medium' | 'high' | 'extreme';
+}
+
+export interface PositionSizing {
+  basePosition: number;      // Signal score based (0-100%)
+  volatilityAdjusted: number; // After ATR adjustment (0-100%)
+  riskLevel: 'conservative' | 'moderate' | 'aggressive';
+  maxLeverage: number;       // Suggested max leverage based on volatility
+  reasoning: string[];
+}
+
 export interface CoinData {
   symbol: string;
   displayName: string;

@@ -1,4 +1,4 @@
-import { Kline, TechnicalAnalysis, MACD, BollingerBands, VolumeAnalysis, TradingSignal } from '@/types/market';
+import { Kline, TechnicalAnalysis, MACD, BollingerBands, VolumeAnalysis, TradingSignal, ATRData, PositionSizing } from '@/types/market';
 
 export function calculateSMA(prices: number[], period: number): number {
   if (prices.length < period) return 0;
@@ -344,5 +344,122 @@ export function generateTradingSignal(
     score,
     reasons,
     timestamp: Date.now(),
+  };
+}
+
+// ATR (Average True Range) 계산
+export function calculateATR(klines: Kline[], period = 14): ATRData {
+  if (klines.length < period + 1) {
+    return { atr: 0, atrPercent: 0, volatility: 'medium' };
+  }
+
+  const trueRanges: number[] = [];
+  
+  for (let i = 1; i < klines.length; i++) {
+    const current = klines[i];
+    const prevClose = klines[i - 1].close;
+    
+    const tr = Math.max(
+      current.high - current.low,
+      Math.abs(current.high - prevClose),
+      Math.abs(current.low - prevClose)
+    );
+    trueRanges.push(tr);
+  }
+
+  // Calculate ATR using EMA-style smoothing
+  let atr = trueRanges.slice(0, period).reduce((sum, tr) => sum + tr, 0) / period;
+  
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+
+  const currentPrice = klines[klines.length - 1].close;
+  const atrPercent = (atr / currentPrice) * 100;
+
+  // Volatility classification
+  let volatility: ATRData['volatility'];
+  if (atrPercent < 2) volatility = 'low';
+  else if (atrPercent < 4) volatility = 'medium';
+  else if (atrPercent < 7) volatility = 'high';
+  else volatility = 'extreme';
+
+  return { atr, atrPercent, volatility };
+}
+
+// 포지션 사이징 계산
+export function calculatePositionSizing(
+  signal: TradingSignal,
+  atr: ATRData
+): PositionSizing {
+  const reasoning: string[] = [];
+
+  // 1. 기본 포지션: 시그널 점수 기반 (0-100%)
+  // 점수가 양수면 매수 비중, 음수면 매도/현금 비중으로 해석
+  const absScore = Math.abs(signal.score);
+  let basePosition = 0;
+  
+  if (signal.action === 'strong_buy') {
+    basePosition = 80 + (absScore - 50) * 0.4; // 80-100%
+    reasoning.push(`강력 매수 시그널 (점수: ${signal.score})`);
+  } else if (signal.action === 'buy') {
+    basePosition = 50 + (absScore - 25) * 1.2; // 50-80%
+    reasoning.push(`매수 시그널 (점수: ${signal.score})`);
+  } else if (signal.action === 'hold') {
+    basePosition = 30 + absScore; // 30-55%
+    reasoning.push(`관망 시그널 - 기존 포지션 유지`);
+  } else if (signal.action === 'sell') {
+    basePosition = Math.max(10, 30 - (absScore - 25) * 0.8); // 10-30%
+    reasoning.push(`매도 시그널 - 비중 축소 권장`);
+  } else { // strong_sell
+    basePosition = Math.max(0, 10 - (absScore - 50) * 0.2); // 0-10%
+    reasoning.push(`강력 매도 시그널 - 포지션 정리 권장`);
+  }
+
+  // 2. 변동성 조정
+  let volatilityMultiplier = 1;
+  let maxLeverage = 1;
+
+  switch (atr.volatility) {
+    case 'low':
+      volatilityMultiplier = 1.2; // 변동성 낮으면 비중 UP
+      maxLeverage = 5;
+      reasoning.push(`낮은 변동성 (ATR ${atr.atrPercent.toFixed(1)}%) → 비중 +20%`);
+      break;
+    case 'medium':
+      volatilityMultiplier = 1.0;
+      maxLeverage = 3;
+      reasoning.push(`보통 변동성 (ATR ${atr.atrPercent.toFixed(1)}%)`);
+      break;
+    case 'high':
+      volatilityMultiplier = 0.7; // 변동성 높으면 비중 DOWN
+      maxLeverage = 2;
+      reasoning.push(`높은 변동성 (ATR ${atr.atrPercent.toFixed(1)}%) → 비중 -30%`);
+      break;
+    case 'extreme':
+      volatilityMultiplier = 0.5; // 극단적 변동성은 절반
+      maxLeverage = 1;
+      reasoning.push(`극심한 변동성 (ATR ${atr.atrPercent.toFixed(1)}%) → 비중 -50%, 레버리지 비추`);
+      break;
+  }
+
+  const volatilityAdjusted = Math.min(100, Math.max(0, basePosition * volatilityMultiplier));
+
+  // 3. 리스크 레벨 결정
+  let riskLevel: PositionSizing['riskLevel'];
+  if (volatilityAdjusted >= 70) {
+    riskLevel = 'aggressive';
+  } else if (volatilityAdjusted >= 40) {
+    riskLevel = 'moderate';
+  } else {
+    riskLevel = 'conservative';
+  }
+
+  return {
+    basePosition: Math.round(basePosition),
+    volatilityAdjusted: Math.round(volatilityAdjusted),
+    riskLevel,
+    maxLeverage,
+    reasoning,
   };
 }
